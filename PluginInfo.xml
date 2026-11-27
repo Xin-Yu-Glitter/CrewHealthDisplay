@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PluginInfos notsyncedinmultiplayer="true">
+  <MainAssemblyInfo assemblypath="%ModDir%/Windows/Client/CrewHealthDisplayClient.dll" platforms="Windows" targets="Client" />
+  <MainAssemblyInfo assemblypath="%ModDir%/Linux/Client/CrewHealthDisplayClient.dll" platforms="Linux" targets="Client" />
+  <MainAssemblyInfo assemblypath="%ModDir%/Mac/Client/CrewHealthDisplayClient.dll" platforms="Mac" targets="Client" />
+</PluginInfos>

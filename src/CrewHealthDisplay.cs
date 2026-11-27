@@ -1,4 +1,5 @@
 using Barotrauma;
+using Barotrauma.Plugins;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -8,20 +9,20 @@ using System.Collections.Generic;
 
 namespace CrewHealthDisplayMod
 {
-    public class CrewHealthDisplay : IAssemblyPlugin
+    public class CrewHealthDisplay : IBarotraumaPlugin
     {
-        private const string Version = "2.2.0";
-
         private Harmony harmony;
+        private static IDebugConsole console;
 
-        public void Initialize()
+        public void Init()
         {
-            harmony = new Harmony("quickfun.barotrauma.crewhealthdisplay.1");
+            console = PluginServiceProvider.GetService<IDebugConsole>();
+            harmony = PluginServiceProvider.GetService<IHarmonyProvider>().GetHarmony();
         }
 
-        public void PreInitPatching() { }
+        internal static void Log(string message) => console?.NewMessage(message);
 
-        public void OnLoadCompleted()
+        public void OnContentLoaded()
         {
             try
             {
@@ -36,19 +37,18 @@ namespace CrewHealthDisplayMod
                 }
                 else
                 {
-                    LuaCsLogger.Log($"[CrewHealthDisplay] CharacterHUD.Draw(SpriteBatch, Character, Camera) was not found; in-game health display disabled v{Version}.");
+                    Log("Could not find CharacterHUD.Draw(SpriteBatch, Character, Camera). The in-game health panel is disabled.");
                 }
 
+                var hotkeyPostfix = new HarmonyMethod(typeof(CrewHealthDisplayUpdatePatch), nameof(CrewHealthDisplayUpdatePatch.Postfix));
                 var gameScreenUpdate = AccessTools.Method(typeof(GameScreen), nameof(GameScreen.Update), new[] { typeof(double) });
                 if (gameScreenUpdate != null)
                 {
-                    harmony.Patch(
-                        gameScreenUpdate,
-                        postfix: new HarmonyMethod(typeof(CrewHealthDisplayUpdatePatch), nameof(CrewHealthDisplayUpdatePatch.Postfix)));
+                    harmony.Patch(gameScreenUpdate, postfix: hotkeyPostfix);
                 }
                 else
                 {
-                    LuaCsLogger.Log($"[CrewHealthDisplay] GameScreen.Update(double) was not found; Alt+U toggle disabled v{Version}.");
+                    Log("Could not find GameScreen.Update(double). Alt+U is unavailable during gameplay.");
                 }
 
                 var characterRemove = AccessTools.Method(typeof(Character), nameof(Character.Remove));
@@ -60,7 +60,7 @@ namespace CrewHealthDisplayMod
                 }
                 else
                 {
-                    LuaCsLogger.Log($"[CrewHealthDisplay] Character.Remove was not found; removed-crew snapshots disabled v{Version}.");
+                    Log("Could not find Character.Remove. Removed crew members will not be tracked.");
                 }
 
                 var startRound = AccessTools.Method(
@@ -75,7 +75,7 @@ namespace CrewHealthDisplayMod
                 }
                 else
                 {
-                    LuaCsLogger.Log($"[CrewHealthDisplay] GameSession.StartRound(LevelData, bool) was not found; crew display state may carry over between rounds v{Version}.");
+                    Log("Could not find GameSession.StartRound(LevelData, bool). The panel may retain crew data from the previous round.");
                 }
 
                 Type editorType = AccessTools.TypeByName("Barotrauma.CharacterEditor.CharacterEditorScreen");
@@ -91,30 +91,46 @@ namespace CrewHealthDisplayMod
                         harmony.Patch(
                             editorDraw,
                             postfix: new HarmonyMethod(typeof(CharacterHUDDrawPatch), nameof(CharacterHUDDrawPatch.EditorPostfix)));
-                        LuaCsLogger.Log($"[CrewHealthDisplay] CharacterEditorScreen.Draw patched v{Version}.");
                     }
                     else
                     {
-                        LuaCsLogger.Log($"[CrewHealthDisplay] CharacterEditorScreen.Draw(double, GraphicsDevice, SpriteBatch) was not found; editor health display disabled v{Version}.");
+                        Log("Could not find CharacterEditorScreen.Draw(double, GraphicsDevice, SpriteBatch). The editor health panel is disabled.");
+                    }
+
+                    var editorUpdate = AccessTools.DeclaredMethod(editorType, nameof(GameScreen.Update), new[] { typeof(double) });
+                    if (editorUpdate != null)
+                    {
+                        harmony.Patch(editorUpdate, postfix: hotkeyPostfix);
+                    }
+                    else
+                    {
+                        Log("Could not find CharacterEditorScreen.Update(double). Alt+U is unavailable in the character editor.");
                     }
                 }
                 else
                 {
-                    LuaCsLogger.Log($"[CrewHealthDisplay] CharacterEditorScreen type was not found; editor health display disabled v{Version}.");
+                    Log("Could not find CharacterEditorScreen. The editor health panel is disabled.");
                 }
 
-                LuaCsLogger.Log($"[CrewHealthDisplay] Loaded v{Version}. Drawing health panel after HUD/editor draw.");
+                Log("Crew health display loaded.");
             }
             catch (Exception ex)
             {
-                LuaCsLogger.Log($"[CrewHealthDisplay] Failed to patch HUD draw v{Version}; mod disabled safely. {ex}");
+                harmony.UnpatchSelf();
+                console.ThrowError("Could not install the crew health display patches.", ex);
             }
         }
 
         public void Dispose()
         {
-            CharacterHUDDrawPatch.DisposeUi();
-            harmony?.UnpatchSelf();
+            try
+            {
+                CharacterHUDDrawPatch.DisposeUi();
+            }
+            finally
+            {
+                console = null;
+            }
         }
     }
 
@@ -167,7 +183,7 @@ namespace CrewHealthDisplayMod
                 if (!loggedFirstDraw)
                 {
                     loggedFirstDraw = true;
-                    LuaCsLogger.Log($"[CrewHealthDisplay] HUD draw reached. CharacterList.Count={Character.CharacterList.Count}.");
+                    CrewHealthDisplay.Log($"HUD draw reached. CharacterList.Count={Character.CharacterList.Count}.");
                 }
 
                 DrawCrewHealthPanel(spriteBatch, isEditorMode: false);
@@ -176,7 +192,7 @@ namespace CrewHealthDisplayMod
             }
             catch (Exception ex)
             {
-                LuaCsLogger.Log($"[CrewHealthDisplay] HUD health draw failed. {ex}");
+                CrewHealthDisplay.Log($"HUD health draw failed. {ex}");
             }
         }
 
@@ -209,7 +225,7 @@ namespace CrewHealthDisplayMod
             }
             catch (Exception ex)
             {
-                LuaCsLogger.Log($"[CrewHealthDisplay] Editor health draw failed. {ex}");
+                CrewHealthDisplay.Log($"Editor health draw failed. {ex}");
             }
             finally
             {
@@ -221,7 +237,7 @@ namespace CrewHealthDisplayMod
                     }
                     catch (Exception endEx)
                     {
-                        LuaCsLogger.Log($"[CrewHealthDisplay] Editor health SpriteBatch.End failed. {endEx.Message}");
+                        CrewHealthDisplay.Log($"Editor health SpriteBatch.End failed. {endEx.Message}");
                     }
                 }
             }
@@ -238,12 +254,12 @@ namespace CrewHealthDisplayMod
                     {
                         CrewHealthSettingsWindow.HideInteractiveUi();
                     }
-                    LuaCsLogger.Log($"[CrewHealthDisplay] Alt+U toggle: {(panelVisible ? "shown" : "hidden")}.");
+                    CrewHealthDisplay.Log($"Alt+U toggle: {(panelVisible ? "shown" : "hidden")}.");
                 }
             }
             catch (Exception ex)
             {
-                LuaCsLogger.Log($"[CrewHealthDisplay] Hotkey update failed safely. {ex.Message}");
+                CrewHealthDisplay.Log($"Hotkey update failed safely. {ex.Message}");
             }
         }
 

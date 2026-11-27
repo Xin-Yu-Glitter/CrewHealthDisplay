@@ -90,7 +90,7 @@ namespace CrewHealthDisplayMod
             }
             catch (Exception ex)
             {
-                LuaCsLogger.Log($"[CrewHealthDisplay] Failed to load config; using defaults. {ex.Message}");
+                CrewHealthDisplay.Log($"Failed to load config; using defaults. {ex.Message}");
                 Reset(save: false);
             }
         }
@@ -157,7 +157,7 @@ namespace CrewHealthDisplayMod
             }
             catch (Exception ex)
             {
-                LuaCsLogger.Log($"[CrewHealthDisplay] Failed to save config. {ex.Message}");
+                CrewHealthDisplay.Log($"Failed to save config. {ex.Message}");
             }
         }
 
