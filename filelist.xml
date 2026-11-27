@@ -1,0 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<contentpackage name="Crew Health Display  船员血量显示" steamworkshopid="3715230190" corepackage="false" modversion="2.2.1" gameversion="1.15.33.2" installtime="1795750408" expectedhash="6AE5EA162483D950ABBBD8520311BEEA">
+  <Dependency identifier="luacs" names="LuaCsForBarotrauma" ids="2559634234" SteamAppIds="" isoptional="False" order="Below" />
+</contentpackage>
